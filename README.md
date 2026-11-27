@@ -79,14 +79,27 @@ python3 tools/make_challenges.py --check
 python3 tools/selfcheck.py              # judge every answer against its challenge
 ```
 
-**Build with `tools/build.sh`, not with a bare `lake build`.** The files in `Proofs/` and `Cuts/`
-are other people's answers. Lean lets a file run code while it is built, so building an answer is
-running a stranger's code, on a machine that may hold your keys. Proving Ground refuses an answer
-that runs code while it builds, but no such rule is complete for Lean. The script builds inside a
-sandbox with no network, a read-only system and an empty home, and `bash tools/build.sh
---check-sandbox` shows that the sandbox is in force. A bare `lake build` here builds only the
-maintainers' library. On a system without bubblewrap, build inside a container or a virtual
-machine.
+**Build with `tools/build.sh`, not with a bare `lake build`, and do not open an answer in an
+editor.** The files in `Proofs/` and `Cuts/` are other people's answers. Lean lets a file run code
+while it is built, so building an answer is running a stranger's code, on a machine that may hold
+your keys. An editor does the same: it elaborates a file to show it to you, outside any sandbox.
+Proving Ground refuses an answer that runs code while it builds, but no such rule is complete for
+Lean, least of all in a goal with dependencies.
+
+- `bash tools/build.sh` builds inside a sandbox with no network, a read-only system and an empty
+  home. The library is built first, with the answers hidden from that step. Then the answers are
+  built with the goal read-only, dependencies included, into a throwaway directory that is deleted
+  afterwards. So nothing an answer's build wrote is left for a later command to read. `bash tools/build.sh --check-sandbox` shows that all of this is in force.
+- To try an answer of your own, put it in `Proofs/` and run `bash tools/build.sh Proofs.<id>`.
+- `python3 tools/selfcheck.py` judges each answer by a call of its own to that script, in the same
+  sandbox and in a throwaway build directory of its own. No answer is judged in a directory that
+  another answer's build could write.
+- A bare `lake build` builds only the maintainers' library.
+- If a goal has dependencies, fetch them and their build cache before you build any answer. That
+  step needs the network and runs the dependencies' own code.
+
+The sandbox needs bubblewrap. On a system without it, do all of this inside a container or a
+virtual machine.
 
 To start a goal of your own: replace `Example/` with your library, write one manifest per problem,
 run the tool, and delete the example's answers.
