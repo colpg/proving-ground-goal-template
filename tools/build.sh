@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # build.sh [target...]
+# build.sh --judge CONFIG
 # build.sh --check-sandbox
 #
 # Builds this goal inside a sandbox, and keeps nothing that an answer's build wrote.
@@ -18,8 +19,10 @@
 # own. It is used in two steps.
 #
 #   1. The library. The maintainers' own library is built first, by itself, into the goal's real
-#      .lake directory. No answer is built in this step. Lake also writes a few small files into
-#      the dependencies the first time it builds on them, and this is when it does.
+#      .lake directory. In this step Proofs/ and Cuts/ are hidden: the sandbox shows them as empty
+#      directories, so no answer can be built here whatever the lakefile says, and a library that
+#      imports an answer fails to build. Lake also writes a few small files into the dependencies
+#      the first time it builds on them, and this is when it does.
 #   2. The answers. For the challenges, the answers and the cuts the goal is read-only, its .lake
 #      directory and its dependencies included. The one directory a build can write is a throwaway
 #      one, put where .lake/build would be and deleted when this script ends. It starts as a copy
@@ -28,6 +31,13 @@
 #
 # With no argument it builds everything: the library, then the challenges, the answers and the
 # cuts. To try an answer of your own, put it in Proofs/ and name its module: build.sh Proofs.<id>
+#
+# With --judge it judges one answer. CONFIG is a file for Lean's own judge, `lake comparator`, and
+# the judge runs inside step 2's sandbox, in a throwaway build directory of its own. The judge has
+# a sandbox of its own, and it is switched off here because this one is stricter: the judge's lets
+# a build write all of .lake. Each answer is judged by a separate call, so no answer is judged in
+# a directory that another answer's build could write.
+#
 # With --check-sandbox it builds nothing, and fails unless the sandbox of step 2 is really in force.
 #
 # The arguments given to the sandbox are the ones the Proving Ground checker uses, which are the
@@ -42,22 +52,29 @@ work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
 mkdir -p "$root/.lake/build" "$work/build"
 
-# Step 1 must build no answer, since it can write the real .lake directory.
-if grep -E '^[[:space:]]*defaultTargets' "$root/lakefile.toml" | grep -q -E '"(Problems|Proofs|Cuts)"'; then
-  echo "lakefile.toml builds answers by default. Its defaultTargets must name the library alone."; exit 2
-fi
-
 sandbox() {
-  # $1 is what is bound where .lake would be writable: the whole real .lake, or only a build directory.
-  local writable=("${@:1:3}"); shift 3
+  # The arguments before `--` say what can be written, and what is hidden. The rest is the command.
+  local extra=()
+  while [ "$1" != "--" ]; do extra+=("$1"); shift; done
+  shift
   bwrap --ro-bind / / --tmpfs /home --tmpfs /root --tmpfs /run/user --tmpfs /tmp --dir /tmp/home \
     --dev /dev --proc /proc --clearenv --tmpfs /run --tmpfs /var \
-    --ro-bind "$root" "$root" --ro-bind "$lean" "$lean" "${writable[@]}" \
+    --ro-bind "$root" "$root" --ro-bind "$lean" "$lean" "${extra[@]}" \
     --setenv PATH "$lean/bin:/usr/bin:/bin" --setenv LEAN_ABORT_ON_PANIC 1 --setenv HOME /tmp/home \
     --unshare-all --die-with-parent --new-session --chdir "$root" -- "$@"
 }
-library() { sandbox --bind "$root/.lake" "$root/.lake" "$@"; }
-inside() { sandbox --bind "$work/build" "$root/.lake/build" "$@"; }
+library() {
+  # Step 1: the real .lake can be written, and the answers cannot be seen.
+  local hide=()
+  for d in Proofs Cuts; do
+    if [ -d "$root/$d" ]; then hide+=(--tmpfs "$root/$d"); fi
+  done
+  sandbox --bind "$root/.lake" "$root/.lake" "${hide[@]}" -- "$@"
+}
+inside() {
+  # Step 2: nothing of the goal can be written but a throwaway build directory.
+  sandbox --bind "$work/build" "$root/.lake/build" -- "$@"
+}
 
 if [ "${1:-}" = "--check-sandbox" ]; then
   # Each line must fail or differ outside a sandbox, so this check can fail.
@@ -73,11 +90,25 @@ if [ "${1:-}" = "--check-sandbox" ]; then
     echo "the sandbox is in force: a read-only goal and dependencies, a home that is not the machine own, a process space of its own, no network"'
   if [ -e "$root/.lake/build/sandbox-probe" ]; then echo "what the sandbox wrote reached the goal's own build directory"; exit 1; fi
   echo "and nothing it wrote reached the goal's own build directory"
-  exit 0
+  # In step 1 the answers must not be there to build.
+  library bash -c '
+    for d in Proofs Cuts; do
+      if [ -d "$d" ] && [ -n "$(ls -A "$d")" ]; then echo "the first step can see the files in $d"; exit 1; fi
+    done
+    echo "and the first step cannot see an answer"'
+  exit $?
 fi
 
 library lake build
 cp -a "$root/.lake/build/." "$work/build/"
+
+if [ "${1:-}" = "--judge" ]; then
+  config="${2:?--judge needs a configuration file for the judge}"
+  cp "$config" "$work/build/judge.json"
+  inside lake comparator --paranoid --inadvisably-no-sandbox --config .lake/build/judge.json
+  exit $?
+fi
+
 if [ "$#" -gt 0 ]; then
   inside lake build "$@"
 else

@@ -87,11 +87,13 @@ Proving Ground refuses an answer that runs code while it builds, but no such rul
 Lean, least of all in a goal with dependencies.
 
 - `bash tools/build.sh` builds inside a sandbox with no network, a read-only system and an empty
-  home. The goal is read-only there too, dependencies included. What a build writes goes to a
-  throwaway directory that is deleted afterwards, so nothing an answer's build wrote is left for a
-  later command to read. `bash tools/build.sh --check-sandbox` shows that all of this is in force.
+  home. The library is built first, with the answers hidden from that step. Then the answers are
+  built with the goal read-only, dependencies included, into a throwaway directory that is deleted
+  afterwards. So nothing an answer's build wrote is left for a later command to read. `bash tools/build.sh --check-sandbox` shows that all of this is in force.
 - To try an answer of your own, put it in `Proofs/` and run `bash tools/build.sh Proofs.<id>`.
-- `python3 tools/selfcheck.py` judges every answer on a throwaway copy of the repository.
+- `python3 tools/selfcheck.py` judges each answer by a call of its own to that script, in the same
+  sandbox and in a throwaway build directory of its own. No answer is judged in a directory that
+  another answer's build could write.
 - A bare `lake build` builds only the maintainers' library.
 - If a goal has dependencies, fetch them and their build cache before you build any answer. That
   step needs the network and runs the dependencies' own code.
