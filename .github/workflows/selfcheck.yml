@@ -54,8 +54,12 @@ jobs:
           if probe; then echo "the sandbox starts only with the system-wide setting relaxed"; exit 0; fi
           echo "the sandbox cannot start on this machine"; exit 1
 
-      - name: Build the goal
-        run: lake build
+      - name: Check that the build's sandbox is in force
+        run: bash tools/build.sh --check-sandbox
+
+      - name: Build the goal inside the sandbox
+        # The files in Proofs/ and Cuts/ are answers, and an answer can run code while it builds.
+        run: bash tools/build.sh
 
       - name: Judge every example answer
         run: python3 tools/selfcheck.py

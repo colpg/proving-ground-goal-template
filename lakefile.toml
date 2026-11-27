@@ -1,5 +1,7 @@
 name = "example_goal"
-defaultTargets = ["Example", "Proofs", "Cuts"]
+# A bare `lake build` builds only the maintainers' library. The answers and the cuts are built by
+# tools/build.sh, inside a sandbox, because an answer can run code while it builds.
+defaultTargets = ["Example"]
 
 [[lean_lib]]
 name = "Example"
