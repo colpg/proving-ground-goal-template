@@ -1,0 +1,4 @@
+id = "xor2_le_5_by_mono"
+parent = "xor2_le_5"
+children = ["xor2_le_4", "size_mono"]
+theorem = "Example.xor2_le_5_by_mono"

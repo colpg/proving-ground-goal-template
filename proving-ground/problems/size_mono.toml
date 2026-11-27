@@ -1,0 +1,12 @@
+id = "size_mono"
+kind = "prove"
+theorem = "Example.size_mono"
+statement = "Example.size_mono.Statement"
+level = "solid"
+places = 1
+uses = []
+fidelity = "confirmed"
+note = ""
+
+[source]
+in_words = "A size bound stays a size bound when it grows."

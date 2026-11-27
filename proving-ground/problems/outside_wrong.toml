@@ -1,0 +1,14 @@
+id = "outside_wrong"
+kind = "settle"
+theorem = "Example.outside_wrong"
+statement = "Example.outside_wrong.Statement"
+level = "warm-up"
+places = 1
+uses = []
+fidelity = "unreviewed"
+note = "Taken from the outside set."
+
+[source]
+id = "Outside.wrong"
+address = ""
+in_words = "Two and two make five."

@@ -1,0 +1,7 @@
+title = "Example goal: small circuits for two-bit functions"
+licence = "Apache-2.0"
+statements = "Example.Statements"
+roots = ["xor2_le_5"]
+permitted_axioms = ["propext", "Quot.sound", "Classical.choice"]
+may_import = ["Example"]
+report_to = ""

@@ -1,0 +1,12 @@
+id = "and_eq_or"
+kind = "settle"
+theorem = "Example.and_eq_or"
+statement = "Example.and_eq_or.Statement"
+level = "warm-up"
+places = 1
+uses = []
+fidelity = "confirmed"
+note = "Truth not stated. Prove it or refute it."
+
+[source]
+in_words = "Conjunction and disjunction of two bits always agree."

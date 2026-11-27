@@ -1,0 +1,12 @@
+id = "xor2_le_4"
+kind = "construct"
+theorem = "Example.xor2_le_4"
+statement = "Example.xor2_le_4.Statement"
+level = "warm-up"
+places = 1
+uses = []
+fidelity = "confirmed"
+note = "Give a gate list and an output wire. Both parts are decidable."
+
+[source]
+in_words = "Exclusive or of two bits has a circuit of at most 4 gates."

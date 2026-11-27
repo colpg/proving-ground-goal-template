@@ -1,0 +1,59 @@
+# Builds the example goal and judges every example answer with Lean's own judge, sandbox on.
+# Nothing here holds a secret, and the token can only read this repository.
+name: selfcheck
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: selfcheck-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  selfcheck:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      LEAN_VERSION: "4.36.0"
+      # sha256 of lean-4.36.0-linux.tar.zst as published with the release, compared again here.
+      LEAN_SHA256: "2b7ab1ed8b92d2e6abfaf41344823b510064dbc9c0260cac73eb496ab2dea6eb"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Install the pinned Lean release and the sandbox tool
+        run: |
+          set -euo pipefail
+          curl -sSfL "https://github.com/leanprover/lean4/releases/download/v${LEAN_VERSION}/lean-${LEAN_VERSION}-linux.tar.zst" -o "$RUNNER_TEMP/lean.tar.zst"
+          echo "${LEAN_SHA256}  $RUNNER_TEMP/lean.tar.zst" | sha256sum -c -
+          # Outside the home directory: the judge's sandbox hides home directories.
+          sudo mkdir -p /opt/lean
+          sudo tar --zstd -xf "$RUNNER_TEMP/lean.tar.zst" -C /opt/lean --strip-components=1
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq bubblewrap
+          echo "/opt/lean/bin" >> "$GITHUB_PATH"
+
+      - name: Let the sandbox start
+        run: |
+          # Ubuntu 24.04 refuses unprivileged user namespaces unless a profile allows the program.
+          # The narrow fix is a profile for this one executable. The broad one is a system setting.
+          probe() { bwrap --unshare-user --ro-bind / / true 2>/dev/null; }
+          if probe; then echo "the sandbox starts as the machine comes"; exit 0; fi
+          printf 'abi <abi/4.0>,\ninclude <tunables/global>\nprofile bwrap /usr/bin/bwrap flags=(unconfined) {\n  userns,\n}\n' | sudo tee /etc/apparmor.d/bwrap > /dev/null
+          sudo apparmor_parser -r /etc/apparmor.d/bwrap || true
+          if probe; then echo "the sandbox starts with a profile for bwrap alone"; exit 0; fi
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          if probe; then echo "the sandbox starts only with the system-wide setting relaxed"; exit 0; fi
+          echo "the sandbox cannot start on this machine"; exit 1
+
+      - name: Build the goal
+        run: lake build
+
+      - name: Judge every example answer
+        run: python3 tools/selfcheck.py

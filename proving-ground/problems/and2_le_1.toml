@@ -1,0 +1,12 @@
+id = "and2_le_1"
+kind = "construct"
+theorem = "Example.and2_le_1"
+statement = "Example.and2_le_1.Statement"
+level = "warm-up"
+places = 1
+uses = []
+fidelity = "confirmed"
+note = ""
+
+[source]
+in_words = "The conjunction of two bits has a circuit of one gate."

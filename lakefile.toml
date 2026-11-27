@@ -1,0 +1,20 @@
+name = "example_goal"
+defaultTargets = ["Example", "Proofs", "Cuts"]
+
+[[lean_lib]]
+name = "Example"
+
+# Every file in Problems/ is a module of its own; there is no root module.
+[[lean_lib]]
+name = "Problems"
+globs = ["Problems.+"]
+
+# Every file in Proofs/ is a module of its own; there is no root module.
+[[lean_lib]]
+name = "Proofs"
+globs = ["Proofs.+"]
+
+# Every file in Cuts/ is a module of its own; there is no root module.
+[[lean_lib]]
+name = "Cuts"
+globs = ["Cuts.+"]

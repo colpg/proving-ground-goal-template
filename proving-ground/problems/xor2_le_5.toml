@@ -1,0 +1,12 @@
+id = "xor2_le_5"
+kind = "prove"
+theorem = "Example.xor2_le_5"
+statement = "Example.xor2_le_5.Statement"
+level = "solid"
+places = 1
+uses = []
+fidelity = "confirmed"
+note = "The root. It has a cut: four gates are enough, and a bound may grow."
+
+[source]
+in_words = "Exclusive or of two bits has a circuit of at most 5 gates."
