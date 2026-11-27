@@ -15,14 +15,20 @@
 #     it to you, outside any sandbox, and that runs it.
 #
 # What the sandbox is. No network, a read-only system, an empty home, and a process space of its
-# own. The goal is read-only too, its .lake directory included, so a build cannot change a
-# dependency or anything that a later command outside the sandbox would read. The one directory a
-# build can write is a throwaway one, put where .lake/build would be and deleted when this script
-# ends. It starts as a copy of .lake/build, which holds only what a bare `lake build` made.
+# own. It is used in two steps.
+#
+#   1. The library. The maintainers' own library is built first, by itself, into the goal's real
+#      .lake directory. No answer is built in this step. Lake also writes a few small files into
+#      the dependencies the first time it builds on them, and this is when it does.
+#   2. The answers. For the challenges, the answers and the cuts the goal is read-only, its .lake
+#      directory and its dependencies included. The one directory a build can write is a throwaway
+#      one, put where .lake/build would be and deleted when this script ends. It starts as a copy
+#      of what step 1 built. So a build cannot change a dependency, or anything that a later
+#      command outside the sandbox would read.
 #
 # With no argument it builds everything: the library, then the challenges, the answers and the
 # cuts. To try an answer of your own, put it in Proofs/ and name its module: build.sh Proofs.<id>
-# With --check-sandbox it builds nothing, and fails unless the sandbox is really in force.
+# With --check-sandbox it builds nothing, and fails unless the sandbox of step 2 is really in force.
 #
 # The arguments given to the sandbox are the ones the Proving Ground checker uses, which are the
 # ones Lean's own judge uses. Needs bubblewrap, which means Linux. On another system, build inside
@@ -35,15 +41,23 @@ lean="$(lean --print-prefix)"
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
 mkdir -p "$root/.lake/build" "$work/build"
-cp -a "$root/.lake/build/." "$work/build/"
 
-inside() {
+# Step 1 must build no answer, since it can write the real .lake directory.
+if grep -E '^[[:space:]]*defaultTargets' "$root/lakefile.toml" | grep -q -E '"(Problems|Proofs|Cuts)"'; then
+  echo "lakefile.toml builds answers by default. Its defaultTargets must name the library alone."; exit 2
+fi
+
+sandbox() {
+  # $1 is what is bound where .lake would be writable: the whole real .lake, or only a build directory.
+  local writable=("${@:1:3}"); shift 3
   bwrap --ro-bind / / --tmpfs /home --tmpfs /root --tmpfs /run/user --tmpfs /tmp --dir /tmp/home \
     --dev /dev --proc /proc --clearenv --tmpfs /run --tmpfs /var \
-    --ro-bind "$root" "$root" --ro-bind "$lean" "$lean" --bind "$work/build" "$root/.lake/build" \
+    --ro-bind "$root" "$root" --ro-bind "$lean" "$lean" "${writable[@]}" \
     --setenv PATH "$lean/bin:/usr/bin:/bin" --setenv LEAN_ABORT_ON_PANIC 1 --setenv HOME /tmp/home \
     --unshare-all --die-with-parent --new-session --chdir "$root" -- "$@"
 }
+library() { sandbox --bind "$root/.lake" "$root/.lake" "$@"; }
+inside() { sandbox --bind "$work/build" "$root/.lake/build" "$@"; }
 
 if [ "${1:-}" = "--check-sandbox" ]; then
   # Each line must fail or differ outside a sandbox, so this check can fail.
@@ -62,14 +76,15 @@ if [ "${1:-}" = "--check-sandbox" ]; then
   exit 0
 fi
 
+library lake build
+cp -a "$root/.lake/build/." "$work/build/"
 if [ "$#" -gt 0 ]; then
   inside lake build "$@"
 else
-  inside lake build
   libs=()
   for d in Problems Proofs Cuts; do
     if compgen -G "$root/$d/*.lean" > /dev/null; then libs+=("$d"); fi
   done
   if [ "${#libs[@]}" -gt 0 ]; then inside lake build "${libs[@]}"; fi
 fi
-echo "built inside the sandbox; nothing these builds wrote was kept"
+echo "built inside the sandbox; the library is in .lake/build, and nothing an answer wrote while it was built was kept"
