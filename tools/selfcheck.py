@@ -8,13 +8,28 @@ It first checks that the challenge files match the manifests, then asks make_cha
 list of jobs: one per file in Proofs/ and Cuts/. An answer counts as accepted only when the judge
 exits with 0 AND prints its closing line; an exit code alone is not believed.
 
+It works on a throwaway copy of this repository, and deletes the copy when it has finished. The
+judge builds each answer in a sandbox, but that sandbox can write the goal's .lake directory, and
+an answer's build could leave something there for the next command you run outside any sandbox.
+Nothing the judge builds is left in your own copy. Pass --in-place to skip the copy, on a machine
+that is thrown away afterwards.
+
 On a machine where the judge's sandbox cannot start, and only for files you wrote yourself, pass
 --inadvisably-no-sandbox. Continuous integration never does.
 
-Runs `lake`; writes judge_jobs.json and one temporary file. Needs Python 3.11 and Lean 4.35 or later."""
-import json, os, subprocess, sys, tempfile, time
+Runs `lake`; in the copy it writes judge_jobs.json and one temporary file. Needs Python 3.11 and
+Lean 4.35 or later."""
+import json, os, shutil, subprocess, sys, tempfile, time
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if "--in-place" in sys.argv: sys.argv.remove("--in-place")
+else:
+    tmp = tempfile.mkdtemp(prefix="pg-selfcheck-"); copy = os.path.join(tmp, "goal")
+    try:
+        shutil.copytree(ROOT, copy, symlinks=True, ignore=shutil.ignore_patterns(".git"))
+        r = subprocess.run([sys.executable, os.path.join(copy, "tools", "selfcheck.py"), "--in-place"] + sys.argv[1:])
+    finally: shutil.rmtree(tmp, ignore_errors=True)
+    sys.exit(r.returncode)
 os.chdir(ROOT)
 TOOL = [sys.executable, os.path.join("tools", "make_challenges.py")]
 for step in (["--check"], ["--jobs", "judge_jobs.json"]):
